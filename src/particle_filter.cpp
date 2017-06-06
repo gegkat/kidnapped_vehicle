@@ -25,6 +25,37 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
 	// Add random Gaussian noise to each particle.
 	// NOTE: Consult particle_filter.h for more information about this method (and others in this file).
 
+  // Select number of particles to use
+  num_particles = 2;
+
+  // Set up normal distributions
+  default_random_engine generator;
+  normal_distribution<double> x_dist(x,std[0]);
+  normal_distribution<double> y_dist(y,std[1]);
+  normal_distribution<double> theta_dist(theta,std[2]);
+
+  cout << "in init" << endl;
+  cout << "x: " << x << " y: " << y << " theta: " << theta << endl;
+
+  // Initialize each particle with random noise
+  for(int i = 0; i < num_particles; i++) {
+    // Create a particle randomly distributed about the initial estimated postion
+    Particle particle;
+    particle.id = i;
+    particle.x = x_dist(generator);
+    particle.y = y_dist(generator);
+    particle.theta = theta_dist(generator);
+    particle.weight = 1.0;
+
+    // Append particle to particles
+    particles.push_back(particle);
+
+    cout << "curr x: " << particles[i].x << " curr y: " << particles[i].y << " curr theta: " << particles[i].theta << endl;
+  }
+
+  // Filter is now initialized
+  is_initialized = true;
+
 }
 
 void ParticleFilter::prediction(double delta_t, double std_pos[], double velocity, double yaw_rate) {
@@ -32,6 +63,41 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
 	// NOTE: When adding noise you may find std::normal_distribution and std::default_random_engine useful.
 	//  http://en.cppreference.com/w/cpp/numeric/random/normal_distribution
 	//  http://www.cplusplus.com/reference/random/default_random_engine/
+
+
+  // Set up normal distributions
+  default_random_engine generator;
+  normal_distribution<double> x_dist(0,std_pos[0]);
+  normal_distribution<double> y_dist(0,std_pos[1]);
+  normal_distribution<double> theta_dist(0,std_pos[2]);
+
+  cout << "in prediction" << endl;
+  cout << "delta_t: " << delta_t << " std_pos: " << std_pos[0] << " " << std_pos[1] << " " << std_pos[2] << " velocity: " << velocity << " yaw rate: " << yaw_rate << endl;
+
+  // Initialize each particle with random noise
+  for(int i = 0; i < particles.size(); i++) {
+
+    cout << "x: " << particles[i].x << " y: " << particles[i].y << " theta: " << particles[i].theta << endl;
+
+    if (fabs(yaw_rate) < 0.00001) {  
+      particles[i].x += velocity * delta_t * cos(particles[i].theta);
+      particles[i].y += velocity * delta_t * sin(particles[i].theta);
+    } else { 
+
+      double theta_next = particles[i].theta + yaw_rate*delta_t;
+      double a = velocity/yaw_rate;
+      particles[i].x = particles[i].x + a * (sin(theta_next) - sin(particles[i].theta));
+      particles[i].y = particles[i].y + a * (-cos(theta_next) + cos(particles[i].theta));
+      particles[i].theta = theta_next;
+  }
+
+    // Create a particle randomly distributed about the initial estimated postion
+    particles[i].x += x_dist(generator);
+    particles[i].y += y_dist(generator);
+    particles[i].theta += theta_dist(generator);
+
+    cout << "curr x: " << particles[i].x << " curr y: " << particles[i].y << " curr theta: " << particles[i].theta << endl;
+  }
 
 }
 
@@ -55,6 +121,15 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 	//   and the following is a good resource for the actual equation to implement (look at equation 
 	//   3.33
 	//   http://planning.cs.uiuc.edu/node99.html
+
+  for(int i = 0; i < particles.size(); i++) {
+    for(int i = 0; i < observations.size(); i++) {
+      double x = observations[i].x*cos(particles[i].theta) - observations[i].y*sin(particles[i].theta) + particles[i].x;
+      double y = observations[i].x*sin(particles[i].theta) + observations[i].y*cos(particles[i].theta) + particles[i].y;
+      observations[i].x = x;
+      observations[i].y = y;
+    }
+  }
 }
 
 void ParticleFilter::resample() {
