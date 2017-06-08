@@ -26,7 +26,7 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
 	// NOTE: Consult particle_filter.h for more information about this method (and others in this file).
 
   // Select number of particles to use
-  num_particles = 2;
+  num_particles = 500;
 
   // Set up normal distributions
   default_random_engine generator;
@@ -108,29 +108,37 @@ void ParticleFilter::dataAssociation(std::vector<Map::single_landmark_s> predict
 	// NOTE: this method will NOT be called by the grading code. But you will probably find it useful to 
 	//   implement this method and use it as a helper during the updateWeights phase.
 
-  cout << "data association" << endl;
-  double min_distance;
+  //cout << "data association" << endl;
   for(int i = 0; i < observations.size(); i++) {
    // cout << "observation " << i << endl;
+    double min_distance;
     for(int j = 0; j < predicted.size(); j++) {
    //   cout << "predicted " << j << endl;
       double distance = landmark_dist(predicted[j], observations[i]);
+      //cout << "distance: " << distance << endl;
       if (j == 0) min_distance = distance;
       if (distance <= min_distance) {
         min_distance = distance;
         observations[i].id = j;
       }
     }
+    int idx = observations[i].id;
+    //cout << i << " min distance: " << min_distance << " id: " << idx << " x: " << predicted[idx].x_f << " y: " << predicted[idx].y_f  << " obx: " << observations[i].x << " oby: " << observations[i].y << endl;
   }
 }
 
-inline double gauss2(Map::single_landmark_s predicted, LandmarkObs observations, double std[])
+inline double gauss2(Map::single_landmark_s predicted, LandmarkObs observation, double std[])
 {
 
-  double xerr = (observations.x - predicted.x_f);
-  double yerr = (observations.y - predicted.y_f);
+  double dist = landmark_dist(predicted, observation);
+  double xerr = (observation.x - predicted.x_f);
+  double yerr = (observation.y - predicted.y_f);
   double num = exp(-0.5*(xerr*std[0]*std[0]*xerr + yerr*std[1]*std[1]*yerr));
-  return num/2.0*M_PI*std[0]*std[1];
+  double den = 2.0*M_PI*std[0]*std[1];
+  double out = num/den;
+  //cout << "px: " << predicted.x_f << " py: " << predicted.y_f << " obx: " << observation.x << " oby: " << observation.y << endl;
+  //cout << "dist: " << dist << " xerr: " << xerr << " yerr: " << yerr << " num: " << num << " den: " << den << " out: " << out << endl;
+  return out;
 }
 
 void ParticleFilter::updateWeights(double sensor_range, double std_landmark[], 
@@ -146,11 +154,11 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 	//   3.33
 	//   http://planning.cs.uiuc.edu/node99.html
 
-  cout << "start updateWeights" << endl;
+  //cout << "start updateWeights" << endl;
 
   for(int i = 0; i < num_particles; i++) {
     std::vector<LandmarkObs> observations_map_frame;
-    cout << "particle: " << i << endl;
+    //cout << "particle: " << i << endl;
 
     for(int i = 0; i < observations.size(); i++) {
       double x = observations[i].x*cos(particles[i].theta) - observations[i].y*sin(particles[i].theta) + particles[i].x;
@@ -160,17 +168,18 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
       observations_map_frame.push_back(observations[i]);
     }
     dataAssociation(map_landmarks.landmark_list, observations_map_frame);
-    cout << "data assoc complete" << endl;
+    //cout << "data assoc complete" << endl;
     double weight = 1;
-    for(int i = 0; i < observations.size(); i++) {
-      Map::single_landmark_s predicted = map_landmarks.landmark_list[observations[i].id];
-      weight *= gauss2(predicted, observations[i], std_landmark);
+    for(int i = 0; i < observations_map_frame.size(); i++) {
+     // cout << "id: " << observations_map_frame[i].id << endl;
+      Map::single_landmark_s predicted = map_landmarks.landmark_list[observations_map_frame[i].id];
+      weight *= gauss2(predicted, observations_map_frame[i], std_landmark);
     }
-    cout << "gauss complete" << endl;
+    //cout << "gauss complete" << endl;
     particles[i].weight = weight;
     cout << "weight: " << weight << endl;
     weights[i] = weight;
-    cout << "update particle " << i << " complete" << endl;
+    //cout << "update particle " << i << " complete" << endl;
   }
 }
 
@@ -179,7 +188,7 @@ void ParticleFilter::resample() {
 	// NOTE: You may find std::discrete_distribution helpful here.
 	//   http://en.cppreference.com/w/cpp/numeric/random/discrete_distribution
 
-  cout << "start resample" << endl;
+  //cout << "start resample" << endl;
   std::default_random_engine generator;
   std::uniform_int_distribution<int> start_idx_distribution(0,num_particles-1);
 
@@ -189,21 +198,21 @@ void ParticleFilter::resample() {
   std::uniform_real_distribution<double> beta_distribution(0.0,2*max_weight);
   double beta = 0;
   std::vector<Particle> resampled_particles;
-  cout << "Start idx: "  << idx << " max weight: " << max_weight << endl;
+  //cout << "Start idx: "  << idx << " max weight: " << max_weight << endl;
   for(int i = 0; i < num_particles; i++) {
     beta += beta_distribution(generator);
-    cout << "resample step: " << i << " beta start: " << beta << " idx start: " << idx << endl;
+    //cout << "resample step: " << i << " beta start: " << beta << " idx start: " << idx << endl;
     while (beta > weights[idx]) {
       beta -= weights[idx];
       idx = (idx + 1) % num_particles;
     }
-    cout << "beta end: " << beta << " idx end: " << idx << endl;
+    //cout << "beta end: " << beta << " idx end: " << idx << endl;
     resampled_particles.push_back(particles[idx]);
-    cout << "push back complete" << endl;
+    //cout << "push back complete" << endl;
   }
-  cout << "indexing complete" << endl;
+  //cout << "indexing complete" << endl;
   particles = resampled_particles;
-  cout << "resample complete" << endl;
+  //cout << "resample complete" << endl;
 }
 
 Particle ParticleFilter::SetAssociations(Particle particle, std::vector<int> associations, std::vector<double> sense_x, std::vector<double> sense_y)
