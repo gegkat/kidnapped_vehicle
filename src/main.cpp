@@ -46,8 +46,6 @@ int main()
   // Create particle filter
   ParticleFilter pf;
 
-  cout << "test" << endl;
-  
   h.onMessage([&pf,&map,&delta_t,&sensor_range,&sigma_pos,&sigma_landmark](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
@@ -74,7 +72,6 @@ int main()
 			double sense_y = std::stod(j[1]["sense_y"].get<std::string>());
 			double sense_theta = std::stod(j[1]["sense_theta"].get<std::string>());
 
-      cout << "go init" << endl;
 			pf.init(sense_x, sense_y, sense_theta, sigma_pos);
 		  }
 		  else {

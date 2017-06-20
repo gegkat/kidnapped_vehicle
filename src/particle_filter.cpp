@@ -91,7 +91,18 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
 
 }
 
-void ParticleFilter::dataAssociation(std::vector<Map::single_landmark_s> predicted, std::vector<LandmarkObs>& observations) {
+/*
+ * Computes the Euclidean distance between two 2D points.
+ * @param (x1,y1) x and y coordinates of first point
+ * @param (x2,y2) x and y coordinates of second point
+ * @output Euclidean distance between two 2D points
+ */
+inline double landmark_dist(LandmarkObs a, LandmarkObs b) {
+  return dist(a.x, a.y, b.x, b.y);
+}
+
+void ParticleFilter::dataAssociation(std::vector<LandmarkObs> predicted, std::vector<LandmarkObs>& observations) { 
+
 	//  Find the predicted measurement that is closest to each observed measurement and assign the 
 	//   observed measurement to this particular landmark.
 
@@ -115,14 +126,14 @@ void ParticleFilter::dataAssociation(std::vector<Map::single_landmark_s> predict
   }
 }
 
-inline double gauss2(Map::single_landmark_s predicted, LandmarkObs observation, double std[])
+inline double gauss2(LandmarkObs predicted, LandmarkObs observation, double std[])
 {
   // This funciton performs a 2d gaus function between an observation and the associated
   // landmark with covariance std
 
   double dist = landmark_dist(predicted, observation);
-  double xerr = (observation.x - predicted.x_f);
-  double yerr = (observation.y - predicted.y_f);
+  double xerr = (observation.x - predicted.x);
+  double yerr = (observation.y - predicted.y);
   double num = exp(-0.5*(xerr*std[0]*std[0]*xerr + yerr*std[1]*std[1]*yerr));
   double den = 2.0*M_PI*std[0]*std[1];
   double out = num/den;
@@ -133,6 +144,16 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 		std::vector<LandmarkObs> observations, Map map_landmarks) {
 	// Update the weights of each particle using a mult-variate Gaussian distribution. You can read
 	//   more about this distribution here: https://en.wikipedia.org/wiki/Multivariate_normal_distribution
+
+  // Populate prediced with vector of landmakr objects from the Map
+  std::vector<LandmarkObs> predicted;
+  for(int i = 0; i < map_landmarks.landmark_list.size(); i++) {
+      LandmarkObs landmark;
+      landmark.x = map_landmarks.landmark_list[i].x_f;
+      landmark.y = map_landmarks.landmark_list[i].y_f;
+      landmark.id = map_landmarks.landmark_list[i].id_i;
+      predicted.push_back(landmark);
+  }
 
   // Loop through particles
   for(int i = 0; i < num_particles; i++) {
@@ -151,13 +172,13 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
     }
 
     // Associate the observations in the map frame with the predicted landmarks
-    dataAssociation(map_landmarks.landmark_list, observations_map_frame);
+    dataAssociation(predicted, observations_map_frame);
 
     // Calculate the weight for each particle using 2d gauss function
     double weight = 1;
     for(int i = 0; i < observations_map_frame.size(); i++) {
-      Map::single_landmark_s predicted = map_landmarks.landmark_list[observations_map_frame[i].id];
-      weight *= gauss2(predicted, observations_map_frame[i], std_landmark);
+      LandmarkObs landmark = predicted[observations_map_frame[i].id];
+      weight *= gauss2(landmark, observations_map_frame[i], std_landmark);
     }
 
     // Assign weights
