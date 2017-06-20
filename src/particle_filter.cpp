@@ -26,7 +26,8 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
 
   // Select number of particles to use
   // Surpisingly the filter will pass with as few as 7 particles! 
-  num_particles = 7;
+  // 100 particles performs well in speed and accuracy
+  num_particles = 100;
 
   // Set up normal distributions
   default_random_engine generator;
@@ -126,7 +127,7 @@ void ParticleFilter::dataAssociation(std::vector<LandmarkObs> predicted, std::ve
   }
 }
 
-inline double gauss2(LandmarkObs predicted, LandmarkObs observation, double std[])
+inline double gauss2(LandmarkObs predicted, LandmarkObs observation, double varx, double vary, double den)
 {
   // This funciton performs a 2d gaus function between an observation and the associated
   // landmark with covariance std
@@ -134,8 +135,7 @@ inline double gauss2(LandmarkObs predicted, LandmarkObs observation, double std[
   double dist = landmark_dist(predicted, observation);
   double xerr = (observation.x - predicted.x);
   double yerr = (observation.y - predicted.y);
-  double num = exp(-0.5*(xerr*std[0]*std[0]*xerr + yerr*std[1]*std[1]*yerr));
-  double den = 2.0*M_PI*std[0]*std[1];
+  double num = exp(-0.5*(xerr*varx*xerr + yerr*vary*yerr));
   double out = num/den;
   return out;
 }
@@ -154,6 +154,11 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
       landmark.id = map_landmarks.landmark_list[i].id_i;
       predicted.push_back(landmark);
   }
+
+  // Pre compute constants for use in gauss2 weighting function
+  double varx = std_landmark[0]*std_landmark[0];
+  double vary = std_landmark[1]*std_landmark[1];
+  double den = 2.0*M_PI*std_landmark[0]*std_landmark[1];
 
   // Loop through particles
   for(int i = 0; i < num_particles; i++) {
@@ -178,7 +183,7 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
     double weight = 1;
     for(int i = 0; i < observations_map_frame.size(); i++) {
       LandmarkObs landmark = predicted[observations_map_frame[i].id];
-      weight *= gauss2(landmark, observations_map_frame[i], std_landmark);
+      weight *= gauss2(landmark, observations_map_frame[i], varx, vary, den);
     }
 
     // Assign weights
